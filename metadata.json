@@ -1,0 +1,5 @@
+{
+  "name": "Advanced Tracking System with AI Summary",
+  "description": "An application to track items using an access key/ID, displaying detailed tracking events and providing an AI-generated summary of the current status using Gemini API. This app simulates fetching tracking data and then uses Gemini for summarization.",
+  "requestFramePermissions": []
+}
