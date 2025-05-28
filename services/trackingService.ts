@@ -7,26 +7,41 @@ const parseSswDate = (dateString: string | null | undefined): string => {
 
   const parts = dateString.split(' ');
   const dateParts = parts[0].split('/');
+  if (dateParts.length !== 3) return new Date().toISOString(); // Invalid date format
+
   const day = parseInt(dateParts[0], 10);
   const month = parseInt(dateParts[1], 10) - 1; // Month is 0-indexed in JS Date
   const year = parseInt(dateParts[2], 10);
 
+  if (isNaN(day) || isNaN(month) || isNaN(year)) return new Date().toISOString();
+
+
   if (parts.length > 1 && parts[1]) { // Check if time part exists and is not empty
     const timeParts = parts[1].split(':');
-    const hours = parseInt(timeParts[0], 10);
-    const minutes = parseInt(timeParts[1], 10);
-    const seconds = parseInt(timeParts[2], 10);
-    return new Date(year, month, day, hours, minutes, seconds).toISOString();
+    if (timeParts.length === 3) {
+        const hours = parseInt(timeParts[0], 10);
+        const minutes = parseInt(timeParts[1], 10);
+        const seconds = parseInt(timeParts[2], 10);
+        if (!isNaN(hours) && !isNaN(minutes) && !isNaN(seconds)) {
+            return new Date(year, month, day, hours, minutes, seconds).toISOString();
+        }
+    }
   }
   return new Date(year, month, day).toISOString();
 };
 
 
 export const fetchTrackingData = async (accessKey: string): Promise<TrackingInfo> => {
-  const apiUrl = `https://ssw.inf.br/api/trackingdanfe/${accessKey}`;
+  const apiUrl = `https://ssw.inf.br/api/trackingdanfe`; // URL is now static
 
   try {
-    const response = await fetch(apiUrl);
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ chave_nfe: accessKey }), // Send accessKey in the body
+    });
 
     if (!response.ok) {
       // Attempt to parse error from SSW if available
@@ -54,7 +69,7 @@ export const fetchTrackingData = async (accessKey: string): Promise<TrackingInfo
     
     const events: TrackingEvent[] = sswResult.eventos.map((event: any) => ({
       timestamp: parseSswDate(event.dataHora),
-      status: event.descricao || event.codigo, // Use description if available, else code
+      status: event.descricao || event.codigo || "Status Desconhecido", // Use description if available, else code
       location: event.unidade?.nome || event.unidade?.cidade || 'N/A',
       details: event.observacao || (event.unidade?.endereco ? `${event.unidade.endereco.logradouro}, ${event.unidade.endereco.numero}` : undefined),
     })).sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()); // Ensure events are sorted descending by time
@@ -77,6 +92,10 @@ export const fetchTrackingData = async (accessKey: string): Promise<TrackingInfo
 
   } catch (error: any) {
     console.error("Error fetching or processing SSW tracking data:", error);
-    throw new Error(error.message || "An unexpected error occurred while fetching tracking information.");
+    // Ensure the error message passed up is somewhat generic or safe if it's not one we've explicitly created.
+    if (error.message && (error.message.startsWith("SSW API Error:") || error.message.startsWith("Failed to fetch") || error.message.startsWith("Tracking key not found"))) {
+        throw new Error(error.message);
+    }
+    throw new Error("An unexpected error occurred while fetching tracking information. Please check the console for details.");
   }
 };
