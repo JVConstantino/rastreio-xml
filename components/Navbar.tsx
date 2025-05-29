@@ -6,7 +6,7 @@ export const Navbar: React.FC = () => {
     <nav className="w-full bg-slate-900/50 backdrop-blur-md shadow-lg p-4 sticky top-0 z-50">
       <div className="container mx-auto flex items-center justify-between max-w-4xl">
         <div className="text-2xl font-bold text-sky-400">
-          AI Tracking
+          IRR Rastreios
         </div>
         {/* Future navigation links could go here */}
         {/* <div className="space-x-4">
