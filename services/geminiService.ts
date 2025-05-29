@@ -11,47 +11,45 @@ if (!apiKey) {
   );
 }
 
-// Initialize AI client, handle missing API_KEY gracefully for execution but with warning
 const ai = new GoogleGenAI({ apiKey: apiKey || "MISSING_API_KEY_PLACEHOLDER" }); 
 const modelName = 'gemini-2.5-flash-preview-04-17';
 
 const formatTrackingDataForPrompt = (trackingInfo: TrackingInfo): string => {
-  let promptData = `ID do Pacote/Nota: ${trackingInfo.id}\n`;
+  let promptData = `ID do Pacote/Nota Fiscal: ${trackingInfo.id}\n`;
   promptData += `Transportadora: ${trackingInfo.carrier}\n`;
   if (trackingInfo.productName) promptData += `Conteúdo/Detalhes: ${trackingInfo.productName}\n`;
   promptData += `Status Atual: ${trackingInfo.currentStatus}\n`;
 
-  // Format estimated delivery date
-  if (trackingInfo.estimatedDelivery && trackingInfo.estimatedDelivery !== "Not available") {
-    const estDeliveryDate = new Date(trackingInfo.estimatedDelivery);
-    if (!isNaN(estDeliveryDate.getTime())) { // Check if date is valid
-      promptData += `Previsão de Entrega: ${estDeliveryDate.toLocaleDateString('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric'
-      })}\n`;
-    } else {
-      // Fallback if it's not "Not available" but still not a parsable date string
-      promptData += `Previsão de Entrega: ${trackingInfo.estimatedDelivery}\n`;
-    }
-  } else {
-    // Handles "Not available" or if estimatedDelivery is null/undefined
-    promptData += `Previsão de Entrega: ${trackingInfo.estimatedDelivery || 'N/A'}\n`;
-  }
+  // Estimated delivery is now pre-formatted or "Não disponível"
+  promptData += `Previsão de Entrega: ${trackingInfo.estimatedDelivery}\n`;
   
   promptData += `Origem: ${trackingInfo.origin}\n`;
   promptData += `Destino: ${trackingInfo.destination}\n`;
   if (trackingInfo.weight) promptData += `Peso: ${trackingInfo.weight}\n`;
   
-  promptData += "Histórico de Eventos:\n";
-  // Show latest 5 events to keep prompt concise, or all if fewer than 5
-  const eventsToShow = trackingInfo.events.slice(0, 5);
-  eventsToShow.forEach(event => {
-    const eventDate = new Date(event.timestamp);
-    const formattedTimestamp = eventDate.toLocaleString('pt-BR', {
-        day: '2-digit', month: '2-digit', year: 'numeric',
-        hour: '2-digit', minute: '2-digit'
+  promptData += "Histórico de Eventos (mais recentes primeiro):\n";
+  const eventsToShow = trackingInfo.events.slice(0, 5); // Show latest 5 events
+  
+  if (eventsToShow.length === 0) {
+    promptData += "- Nenhum evento de rastreamento registrado.\n";
+  } else {
+    eventsToShow.forEach(event => {
+      let formattedTimestamp = "Data/Hora do evento não fornecida";
+      // Check if timestamp is the default epoch, indicating it was a fallback
+      if (new Date(event.timestamp).getTime() !== new Date(0).getTime() || event.timestamp === new Date(0).toISOString()) {
+        try {
+            formattedTimestamp = new Date(event.timestamp).toLocaleString('pt-BR', {
+                day: '2-digit', month: '2-digit', year: 'numeric',
+                hour: '2-digit', minute: '2-digit'
+            });
+        } catch (e) {
+            // Keep "Data/Hora do evento não fornecida" if parsing fails
+        }
+      }
+      promptData += `- ${formattedTimestamp}: ${event.status} em ${event.location}${event.details ? ` (${event.details})` : ''}\n`;
     });
-    promptData += `- ${formattedTimestamp}: ${event.status} em ${event.location}${event.details ? ` (${event.details})` : ''}\n`;
-  });
+  }
+
   if (trackingInfo.events.length > 5) {
     promptData += `(... e mais ${trackingInfo.events.length - 5} eventos anteriores)\n`;
   }
@@ -59,19 +57,16 @@ const formatTrackingDataForPrompt = (trackingInfo: TrackingInfo): string => {
 };
 
 export const summarizeTrackingWithGemini = async (trackingInfo: TrackingInfo): Promise<string> => {
-  if (!apiKey) {
-    return "Resumo da IA indisponível: Chave da API não configurada.";
-  }
-  if (apiKey === "MISSING_API_KEY_PLACEHOLDER") {
-    return "Resumo da IA indisponível: Chave da API ausente.";
+  if (!apiKey || apiKey === "MISSING_API_KEY_PLACEHOLDER") {
+    return "Resumo da IA indisponível: Chave da API Gemini não configurada ou ausente.";
   }
 
   const formattedData = formatTrackingDataForPrompt(trackingInfo);
   const prompt = `
-Você é um assistente prestativo que fornece um resumo conciso das informações de rastreamento de encomendas para um cliente.
+Você é um assistente virtual que fornece um resumo conciso do rastreamento de encomendas para um cliente.
 Com base nos seguintes dados de rastreamento, forneça uma atualização amigável e breve em português do Brasil.
-Concentre-se no status atual, previsão de entrega e quaisquer eventos recentes importantes.
-Evite jargões sempre que possível. Mantenha o resumo em 2-3 frases.
+Concentre-se no status atual, previsão de entrega (se disponível) e quaisquer eventos recentes importantes.
+Evite jargões. Mantenha o resumo em 2-3 frases.
 
 Dados de Rastreamento:
 ${formattedData}
@@ -95,11 +90,11 @@ Resumo Conciso:
     console.error("Erro ao chamar a API Gemini:", error);
     const errorMessage = error instanceof Error ? error.message : "Erro desconhecido";
     if (errorMessage.toLowerCase().includes("api key not valid") || errorMessage.toLowerCase().includes("api_key_invalid")) {
-        return "Resumo da IA indisponível: Chave da API inválida. Por favor, verifique sua configuração.";
+        return "Resumo da IA indisponível: Chave da API Gemini inválida. Por favor, verifique sua configuração.";
     }
     if (errorMessage.toLowerCase().includes("quota") || errorMessage.toLowerCase().includes("resource has been exhausted")) {
         return "Resumo da IA indisponível no momento devido a limites de uso. Tente novamente mais tarde.";
     }
-    return `O resumo da IA não pôde ser gerado neste momento. (Erro: ${errorMessage})`;
+    return `O resumo da IA não pôde ser gerado. (Detalhe: ${errorMessage})`;
   }
 };
