@@ -6,6 +6,26 @@ export interface TrackingEvent {
   details?: string;
 }
 
+export interface XmlVolumeInfo {
+  quantity?: number;
+  species?: string;
+  netWeight?: number;
+  grossWeight?: number;
+}
+
+export interface XmlInvoiceInfo {
+  number?: string;
+  originalValue?: number;
+  discountValue?: number;
+  netValue?: number;
+}
+
+export interface XmlInstallmentInfo {
+  number?: string;
+  dueDate?: string; // YYYY-MM-DD from XML, format in component
+  value?: number;
+}
+
 export interface TrackingInfo {
   id: string; // DANFE Access Key
   carrier: string;
@@ -15,5 +35,10 @@ export interface TrackingInfo {
   origin: string; // Sender's name or location
   destination: string; // Recipient's name or location
   productName?: string; // e.g., Invoice details
-  weight?: string; // e.g., "2.5kg"
+  weight?: string; // e.g., "2.5kg" - This is parsed from SSW event description
+
+  // New fields for XML-specific data
+  xmlVolumeInfo?: XmlVolumeInfo;
+  xmlInvoiceInfo?: XmlInvoiceInfo;
+  xmlInstallments?: XmlInstallmentInfo[];
 }
